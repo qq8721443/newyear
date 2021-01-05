@@ -1,9 +1,10 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.core import serializers
 from .models import HopeCard, Hope, Post, Comment
 import json
+import requests
 
 class PostView(View):
     def get(self, request):
@@ -52,11 +53,6 @@ class DetailPost(View):
         data.delete()
         return JsonResponse({'message':'delete detail post', 'success':'true'})
 
-class KakaoLogin(View):
-    def get(self, request):
-        # 제일 마지막에 하는게 나을듯?
-        return JsonResponse({'message':'kakao login'})
-
 class HopeView(View):
     def get(self, request):
         data = list(Hope.objects.all().values())
@@ -77,7 +73,7 @@ class HopeCardView(View):
             content = req_data['content'],
             author = req_data['author'],
             private_opt = req_data['private_opt']
-            # req_data에 있는 hope_list를 저장해야함
+            # req_data에 있는 hope_list를 저장해야함, m2m field 이해가 필요한듯
         ).save()
         return JsonResponse({'message':'create hopecard'})
 
@@ -108,3 +104,78 @@ class DeleteComment(View):
         test_data = Comment.objects.get(id = comment_id)
         test_data.delete()
         return JsonResponse({'message':'delete comment', 'success':'true'})
+
+class KakaoLogin(View):
+    def get(self, request):
+        # 제일 마지막에 하는게 나을듯?
+        # 이 부분은 프론트에서 해야하는듯
+        client_id = '20887ce0003dfa62635c435e177fee15'
+        redirect_uri = 'http://localhost:8000/main/oauth/'
+        url = f'https://kauth.kakao.com/oauth/authorize?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code'
+        return redirect(url)
+
+class Oauth(View):
+    def post(self, request):
+        # code = request.GET.get('code', None)
+        data = json.loads(request.body)
+        code = data['code']
+        url = 'https://kauth.kakao.com/oauth/token'
+        client_id = '20887ce0003dfa62635c435e177fee15'
+        redirect_uri = 'http://localhost:3000/oauth'
+        headers = { 'Content-type':'application/x-www-form-urlencoded;charset=utf-8' }
+        params = {
+            'grant_type':'authorization_code',
+            'client_id':client_id,
+            'redirect_uri':redirect_uri,
+            'code':code
+        }
+        res = requests.post(url, headers=headers, params=params)
+        # print(res.json()['access_token'])
+        return JsonResponse({'message':'redirect uri', 'res':res.json()})
+        # return redirect('http://localhost:3000')
+
+class CheckToken(View):
+    def post(self, request):
+        data = json.loads(request.body)
+        url = 'https://kapi.kakao.com/v1/user/access_token_info'
+        headers = {
+            'Authorization': f'Bearer {data["access_token"]}',
+            'Content-type': 'application/x-www-form-urlencoded;charset=utf-8'
+        }
+        res = requests.get(url, headers=headers)
+        return JsonResponse(res.json())
+
+class RefreshToken(View):
+    def post(self, request):
+        data = json.loads(request.body)
+        url = 'https://kauth.kakao.com/oauth/token'
+        client_id = '20887ce0003dfa62635c435e177fee15'
+        params = {
+            'grant_type':'refresh_token',
+            'client_id':client_id,
+            'refresh_token':data['refresh_token']
+        }
+        res = requests.post(url, params = params)
+        return JsonResponse(res.json())
+
+class UserInfo(View):
+    def post(self, request):
+        data = json.loads(request.body)
+        url = 'https://kapi.kakao.com/v2/user/me'
+        headers = {
+            'Authorization':f'Bearer {data["access_token"]}',
+            'Content-type': 'application/x-www-form-urlencoded;charset=utf-8'
+        }
+        res = requests.post(url, headers=headers)
+        print(res.json())
+        return JsonResponse(res.json())
+
+class Oauth2(View):
+    def get(self, request):
+
+        return JsonResponse({'message':'oauth 2'})
+
+class Logout(View):
+    def get(self, request):
+
+        return JsonResponse({'message':'logout'})

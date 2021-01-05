@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import PostView, DetailPost, KakaoLogin, HopeView, HopeCardView, CommentView, DetailComment, DeleteComment
+from .views import PostView, DetailPost, KakaoLogin, HopeView, HopeCardView, CommentView, DetailComment, DeleteComment, Oauth, Oauth2, Logout, CheckToken, RefreshToken, UserInfo
 
 urlpatterns = [
     path('posts/', PostView.as_view()),
@@ -9,5 +9,11 @@ urlpatterns = [
     path('hopecard/', HopeCardView.as_view()),
     path('comments/all/', CommentView.as_view()),
     path('comments/<int:post_id>/', DetailComment.as_view()),
-    path('comments/delete/<int:comment_id>/', DeleteComment.as_view())
+    path('comments/delete/<int:comment_id>/', DeleteComment.as_view()),
+    path('oauth/', Oauth.as_view()),     # redirect uri
+    path('oauth2/', Oauth2.as_view()),
+    path('logout/', Logout.as_view()),
+    path('token_check/', CheckToken.as_view()),
+    path('refresh_token/', RefreshToken.as_view()),
+    path('user_info/', UserInfo.as_view())
 ]
