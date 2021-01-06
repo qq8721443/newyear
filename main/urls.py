@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import PostView, DetailPost, KakaoLogin, HopeView, HopeCardView, CommentView, DetailComment, DeleteComment, Oauth, Oauth2, Logout, CheckToken, RefreshToken, UserInfo
+from .views import PostView, DetailPost, KakaoLogin, HopeView, HopeCardView, CommentView, DetailComment, DeleteComment, Oauth, Oauth2, Logout, CheckToken, RefreshToken, UserInfo, CsrfTest, GenerateCSRF
 
 urlpatterns = [
     path('posts/', PostView.as_view()),
@@ -15,5 +15,9 @@ urlpatterns = [
     path('logout/', Logout.as_view()),
     path('token_check/', CheckToken.as_view()),
     path('refresh_token/', RefreshToken.as_view()),
-    path('user_info/', UserInfo.as_view())
+    path('user_info/', UserInfo.as_view()),
+    path('csrf_test/', CsrfTest.as_view()),
+    path('get_csrf/', GenerateCSRF.as_view()),
+    # path('csrf/', csrf),
+    # path('ping/', ping)
 ]

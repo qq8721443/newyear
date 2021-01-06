@@ -5,6 +5,9 @@ from django.core import serializers
 from .models import HopeCard, Hope, Post, Comment
 import json
 import requests
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.utils.decorators import method_decorator
+from django.middleware.csrf import get_token
 
 class PostView(View):
     def get(self, request):
@@ -168,7 +171,16 @@ class UserInfo(View):
         }
         res = requests.post(url, headers=headers)
         print(res.json())
+        
         return JsonResponse(res.json())
+
+class GenerateCSRF(View):
+    def get(self, request):
+        return JsonResponse({'csrfToken':get_token(request)})
+
+class CsrfTest(View):
+    def post(self, request):
+        return JsonResponse({'message':'CSRF success!!'})
 
 class Oauth2(View):
     def get(self, request):
@@ -179,3 +191,10 @@ class Logout(View):
     def get(self, request):
 
         return JsonResponse({'message':'logout'})
+
+
+# def csrf(request):
+#     return JsonResponse({'csrfToken': get_token(request)})
+
+# def ping(request):
+#     return JsonResponse({'result': 'OK'})
