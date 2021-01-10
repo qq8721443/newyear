@@ -24,7 +24,10 @@ class PostView(View):
             content = data['content'],
             author = data['author']
         ).save()
-        return JsonResponse({'message':'post post', 'res':data})
+        
+        test = list(Post.objects.filter(title = data['title'], content = data['content'], author = data['author']).values())
+        
+        return JsonResponse({'message':'post post', 'res':test})
 
     def delete(self, request):
         data = Post.objects.all()

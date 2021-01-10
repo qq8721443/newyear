@@ -6,6 +6,10 @@ class Post(models.Model):
     title = models.CharField(max_length=30, null=True)
     content = models.TextField()
     author = models.CharField(max_length=50)
+    # created_dt = models.DateTimeField(auto_now_add=True)
+
+    # class Meta:
+    #     ordering = ['-created_dt']
 
 class Comment(models.Model):
     objects = models.Manager()
