@@ -2,12 +2,68 @@ from django.shortcuts import render, redirect
 from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.core import serializers
-from .models import HopeCard, Hope, Post, Comment
+from .models import HopeCard, Hope, Post, Comment, User
 import json
 import requests
+import bcrypt
+import jwt
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from django.middleware.csrf import get_token
+from datetime import datetime, timedelta
+from .utils import SECRET_KEY_ACCESS, SECRET_KEY_REFRESH, ALGORITHM
+
+class SignUp(View):
+    def post(self, request):
+        data = json.loads(request.body)
+
+        if data['kakao_login']:
+            if User.objects.filter(kakao_user_id = data['kakao_user_id']).exists():
+                access_token = jwt.encode({'kakao_user_id':data['kakao_user_id'], 'exp':datetime.utcnow() + timedelta(days=1)}, SECRET_KEY_ACCESS, algorithm=ALGORITHM)
+                refresh_token = jwt.encode({'kakao_user_id':data['kakao_user_id'], 'exp':datetime.utcnow() + timedelta(weeks=4)}, SECRET_KEY_REFRESH, algorithm=ALGORITHM)
+                return JsonResponse({'message':'이미 계정이 존재함', 'access_token':access_token, 'refresh_token':refresh_token})
+            else : 
+                User(
+                    email = data['email'],
+                    nickname = data['nickname'],
+                    kakao_user_id = data['kakao_user_id']
+                ).save()
+                access_token = jwt.encode({'kakao_user_id':data['kakao_user_id']}, SECRET_KEY_ACCESS, algorithm=ALGORITHM)
+                refresh_token = jwt.encode({'kakao_user_id':data['kakao_user_id'], 'exp':datetime.utcnow() + timedelta(weeks=4)}, SECRET_KEY_REFRESH, algorithm=ALGORITHM)
+                return JsonResponse({'message':'kakao login success', 'access_token':access_token, 'refresh_token':refresh_token})
+            # 카카오 로그인은 따로 로그인 과정이 없기 때문에 여기서 jwt 반환
+
+        else :
+            if User.objects.filter(email = data['email']).exists():
+                return JsonResponse({'message':'이메일로 가입한 계정 있음'})
+            else :
+                password = data['password']
+                encoded_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+                print(encoded_password)
+
+                User(
+                    email = data['email'],
+                    password = encoded_password.decode(),
+                    nickname = data['nickname']
+                ).save()
+                return JsonResponse({'message':'normal sign up success'})
+
+class SignIn(View):
+    def post(self, request):
+        data = json.loads(request.body)
+        
+        if User.objects.filter(email = data['email']).exists():
+            instance = User.objects.get(email = data['email'])
+            if bcrypt.checkpw(data['password'].encode('utf-8'), instance.password.encode('utf-8')):
+                # jwt 토큰 반환
+                access_token = jwt.encode({'email':data['email'], 'exp':datetime.utcnow() + timedelta(days=1)}, SECRET_KEY_ACCESS, algorithm=ALGORITHM)
+                refresh_token = jwt.encode({'email':data['email'], 'exp':datetime.utcnow() + timedelta(weeks=4)}, SECRET_KEY_REFRESH, algorithm=ALGORITHM)
+                print(access_token, refresh_token)
+                return JsonResponse({'message':'로그인 성공', 'access_token':access_token, 'refresh_token':refresh_token})
+            else:
+                return JsonResponse({'message':'비밀번호가 틀립니다'})
+        else:
+            return JsonResponse({'message':'계정 존재하지 않음'})
 
 class PostView(View):
     def get(self, request):
@@ -22,7 +78,8 @@ class PostView(View):
         Post(
             title = data['title'],
             content = data['content'],
-            author = data['author']
+            author = data['author'],
+            author_id = data['author_id']
         ).save()
         
         test = list(Post.objects.filter(title = data['title'], content = data['content'], author = data['author']).values())
@@ -110,15 +167,6 @@ class DeleteComment(View):
         test_data = Comment.objects.get(id = comment_id)
         test_data.delete()
         return JsonResponse({'message':'delete comment', 'success':'true'})
-
-class KakaoLogin(View):
-    def get(self, request):
-        # 제일 마지막에 하는게 나을듯?
-        # 이 부분은 프론트에서 해야하는듯
-        client_id = '20887ce0003dfa62635c435e177fee15'
-        redirect_uri = 'http://localhost:8000/main/oauth/'
-        url = f'https://kauth.kakao.com/oauth/authorize?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code'
-        return redirect(url)
 
 class Oauth(View):
     def post(self, request):

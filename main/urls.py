@@ -1,10 +1,10 @@
 from django.urls import path
-from .views import PostView, DetailPost, KakaoLogin, HopeView, HopeCardView, CommentView, DetailComment, DeleteComment, Oauth, Oauth2, Logout, CheckToken, RefreshToken, UserInfo, CsrfTest, GenerateCSRF
+from .views import PostView, DetailPost, HopeView, HopeCardView, CommentView, DetailComment, DeleteComment, Oauth, Oauth2, Logout, CheckToken, RefreshToken, UserInfo, CsrfTest, GenerateCSRF, SignUp, SignIn
 
 urlpatterns = [
     path('posts/', PostView.as_view()),
     path('posts/<int:post_id>/', DetailPost.as_view()),
-    path('sign_in/', KakaoLogin.as_view()),
+    path('signin/', SignIn.as_view()),
     path('hopes/', HopeView.as_view()),
     path('hopecard/', HopeCardView.as_view()),
     path('comments/all/', CommentView.as_view()),
@@ -18,6 +18,7 @@ urlpatterns = [
     path('user_info/', UserInfo.as_view()),
     path('csrf_test/', CsrfTest.as_view()),
     path('get_csrf/', GenerateCSRF.as_view()),
+    path('signup/', SignUp.as_view()),
     # path('csrf/', csrf),
     # path('ping/', ping)
 ]

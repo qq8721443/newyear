@@ -1,12 +1,23 @@
 from django.db import models
 
+class User(models.Model):
+    objects = models.Manager()
+    kakao_user_id = models.PositiveIntegerField(null=True)
+    email = models.EmailField()
+    password = models.CharField( max_length=100, null=True )
+    nickname = models.CharField(max_length=20)
+
+
+
 class Post(models.Model):
     objects = models.Manager()
     post_id = models.BigAutoField(primary_key=True)
     title = models.CharField(max_length=30, null=True)
     content = models.TextField()
     author = models.CharField(max_length=50)
-    # created_dt = models.DateTimeField(auto_now_add=True)
+    author_id = models.CharField(max_length=100)
+    created_dt = models.DateTimeField(auto_now_add=True)
+    views = models.PositiveIntegerField(default=0)
 
     # class Meta:
     #     ordering = ['-created_dt']
