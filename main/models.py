@@ -15,7 +15,7 @@ class Post(models.Model):
     title = models.CharField(max_length=30, null=True)
     content = models.TextField()
     author = models.CharField(max_length=50)
-    author_id = models.CharField(max_length=100)
+    author_email = models.CharField(max_length=100)
     created_dt = models.DateTimeField(auto_now_add=True)
     views = models.PositiveIntegerField(default=0)
 

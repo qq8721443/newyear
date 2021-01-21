@@ -17,36 +17,44 @@ class SignUp(View):
     def post(self, request):
         data = json.loads(request.body)
 
-        if data['kakao_login']:
+        if data['exist_check']:
             if User.objects.filter(kakao_user_id = data['kakao_user_id']).exists():
-                access_token = jwt.encode({'kakao_user_id':data['kakao_user_id'], 'exp':datetime.utcnow() + timedelta(days=1)}, SECRET_KEY_ACCESS, algorithm=ALGORITHM)
-                refresh_token = jwt.encode({'kakao_user_id':data['kakao_user_id'], 'exp':datetime.utcnow() + timedelta(weeks=4)}, SECRET_KEY_REFRESH, algorithm=ALGORITHM)
-                return JsonResponse({'message':'이미 계정이 존재함', 'access_token':access_token, 'refresh_token':refresh_token})
-            else : 
-                User(
-                    email = data['email'],
-                    nickname = data['nickname'],
-                    kakao_user_id = data['kakao_user_id']
-                ).save()
+                ins = User.objects.get(kakao_user_id = data['kakao_user_id'])
                 access_token = jwt.encode({'kakao_user_id':data['kakao_user_id']}, SECRET_KEY_ACCESS, algorithm=ALGORITHM)
                 refresh_token = jwt.encode({'kakao_user_id':data['kakao_user_id'], 'exp':datetime.utcnow() + timedelta(weeks=4)}, SECRET_KEY_REFRESH, algorithm=ALGORITHM)
-                return JsonResponse({'message':'kakao login success', 'access_token':access_token, 'refresh_token':refresh_token})
-            # 카카오 로그인은 따로 로그인 과정이 없기 때문에 여기서 jwt 반환
+                return JsonResponse({'message':'이미 등록 완료', 'already':True, 'nickname':ins.nickname, 'email':ins.email, 'access_token':access_token, 'refresh_token':refresh_token})
+            else:
+                return JsonResponse({'message':'카카오 로그인 진행', 'already':False, 'id':data['kakao_user_id']})
+        else:
+            if data['kakao_login']:
+                if User.objects.filter(email = data['email']).exists():
+                    return JsonResponse({'message':'이미 등록된 이메일 있음', 'success':False})
+                else:
+                    User(
+                        email = data['email'],
+                        nickname = data['nickname'],
+                        kakao_user_id = data['kakao_user_id']
+                    ).save()
+                    ins = User.objects.get(kakao_user_id = data['kakao_user_id'])
+                    access_token = jwt.encode({'kakao_user_id':data['kakao_user_id'], 'exp':datetime.utcnow() + timedelta(days=1)}, SECRET_KEY_ACCESS, algorithm=ALGORITHM)
+                    refresh_token = jwt.encode({'kakao_user_id':data['kakao_user_id'], 'exp':datetime.utcnow() + timedelta(weeks=4)}, SECRET_KEY_REFRESH, algorithm=ALGORITHM)
+                    return JsonResponse({'message':'kakao login success', 'access_token':access_token, 'nickname':ins.nickname, 'email':ins.email, 'refresh_token':refresh_token, 'success':True})
+                # 카카오 로그인은 따로 로그인 과정이 없기 때문에 여기서 jwt 반환
 
-        else :
-            if User.objects.filter(email = data['email']).exists():
-                return JsonResponse({'message':'이메일로 가입한 계정 있음'})
             else :
-                password = data['password']
-                encoded_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-                print(encoded_password)
+                if User.objects.filter(email = data['email']).exists():
+                    return JsonResponse({'message':'이메일로 가입한 계정 있음', 'success':False})
+                else :
+                    password = data['password']
+                    encoded_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+                    print(encoded_password)
 
-                User(
-                    email = data['email'],
-                    password = encoded_password.decode(),
-                    nickname = data['nickname']
-                ).save()
-                return JsonResponse({'message':'normal sign up success'})
+                    User(
+                        email = data['email'],
+                        password = encoded_password.decode(),
+                        nickname = data['nickname']
+                    ).save()
+                    return JsonResponse({'message':'normal sign up success', 'success':True})
 
 class SignIn(View):
     def post(self, request):
@@ -59,7 +67,7 @@ class SignIn(View):
                 access_token = jwt.encode({'email':data['email'], 'exp':datetime.utcnow() + timedelta(days=1)}, SECRET_KEY_ACCESS, algorithm=ALGORITHM)
                 refresh_token = jwt.encode({'email':data['email'], 'exp':datetime.utcnow() + timedelta(weeks=4)}, SECRET_KEY_REFRESH, algorithm=ALGORITHM)
                 print(access_token, refresh_token)
-                return JsonResponse({'message':'로그인 성공', 'access_token':access_token, 'refresh_token':refresh_token})
+                return JsonResponse({'message':'로그인 성공', 'email':instance.email, 'nickname':instance.nickname, 'access_token':access_token, 'refresh_token':refresh_token, 'success':True})
             else:
                 return JsonResponse({'message':'비밀번호가 틀립니다'})
         else:
@@ -68,7 +76,7 @@ class SignIn(View):
 class PostView(View):
     def get(self, request):
         if Post.objects.exists():
-            data = list(Post.objects.values())      #model을 value로 조회하고 list로 감싼다
+            data = list(Post.objects.values().order_by('-created_dt'))      #model을 value로 조회하고 list로 감싼다
             return JsonResponse(data, safe=False)   #safe=False 옵션을 추가해 response 전송
         else:
             return JsonResponse({'message':'get post', 'res':"there's no data"})
@@ -79,7 +87,7 @@ class PostView(View):
             title = data['title'],
             content = data['content'],
             author = data['author'],
-            author_id = data['author_id']
+            author_email = data['author_email']
         ).save()
         
         test = list(Post.objects.filter(title = data['title'], content = data['content'], author = data['author']).values())
