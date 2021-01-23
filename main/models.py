@@ -16,8 +16,12 @@ class Post(models.Model):
     content = models.TextField()
     author = models.CharField(max_length=50)
     author_email = models.CharField(max_length=100)
+    claps =  models.PositiveIntegerField(default=0)
     created_dt = models.DateTimeField(auto_now_add=True)
-    views = models.PositiveIntegerField(default=0)
+    is_success = models.BooleanField(default=False)
+    is_ongoing = models.BooleanField(default=True)
+    is_fail = models.BooleanField(default=False)
+    diff_date = models.PositiveIntegerField()
 
     # class Meta:
     #     ordering = ['-created_dt']
@@ -28,19 +32,19 @@ class Comment(models.Model):
     content = models.TextField(max_length=200)
     post_id = models.ForeignKey(Post, on_delete=models.CASCADE)
 
-class Hope(models.Model):
-    objects = models.Manager()
-    title = models.CharField(max_length=100, null=True)
-    likes = models.PositiveIntegerField(default=0)
+# class Hope(models.Model):
+#     objects = models.Manager()
+#     title = models.CharField(max_length=100, null=True)
+#     likes = models.PositiveIntegerField(default=0)
 
-class HopeCard(models.Model):
-    objects = models.Manager()
-    card_id = models.BigAutoField(primary_key=True)
-    nickname = models.CharField(max_length=15)
-    email = models.EmailField()
-    created_date = models.DateTimeField(auto_now_add=True)
-    content = models.TextField()
-    private_opt = models.BooleanField()
-    hope_list = models.ManyToManyField(Hope)
-    author = models.CharField(max_length=50)
+# class HopeCard(models.Model):
+#     objects = models.Manager()
+#     card_id = models.BigAutoField(primary_key=True)
+#     nickname = models.CharField(max_length=15)
+#     email = models.EmailField()
+#     created_date = models.DateTimeField(auto_now_add=True)
+#     content = models.TextField()
+#     private_opt = models.BooleanField()
+#     hope_list = models.ManyToManyField(Hope)
+#     author = models.CharField(max_length=50)
 

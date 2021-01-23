@@ -2,11 +2,12 @@ from django.shortcuts import render, redirect
 from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.core import serializers
-from .models import HopeCard, Hope, Post, Comment, User
+from .models import Post, Comment, User
 import json
 import requests
 import bcrypt
 import jwt
+import math
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from django.middleware.csrf import get_token
@@ -87,7 +88,8 @@ class PostView(View):
             title = data['title'],
             content = data['content'],
             author = data['author'],
-            author_email = data['author_email']
+            author_email = data['author_email'],
+            diff_date= data['date_difference']
         ).save()
         
         test = list(Post.objects.filter(title = data['title'], content = data['content'], author = data['author']).values())
@@ -123,30 +125,6 @@ class DetailPost(View):
         data = Post.objects.get(post_id = post_id)
         data.delete()
         return JsonResponse({'message':'delete detail post', 'success':'true'})
-
-class HopeView(View):
-    def get(self, request):
-        data = list(Hope.objects.all().values())
-        return JsonResponse({'message':'get hope', 'res':data})
-
-    def post(self, request):
-        req_data = json.loads(request.body)
-        Hope(
-            title = req_data['title']
-        ).save()
-        return JsonResponse({'message':'create hope'})
-    
-class HopeCardView(View):
-    def post(self, request):
-        req_data = json.loads(request.body)
-        HopeCard(
-            email = req_data['email'],
-            content = req_data['content'],
-            author = req_data['author'],
-            private_opt = req_data['private_opt']
-            # req_data에 있는 hope_list를 저장해야함, m2m field 이해가 필요한듯
-        ).save()
-        return JsonResponse({'message':'create hopecard'})
 
 class CommentView(View):
     def get(self, request):
@@ -232,6 +210,44 @@ class UserInfo(View):
         print(res.json())
         
         return JsonResponse(res.json())
+
+class UserCheck(View):
+    def post(self, request):
+        data = json.loads(request.body)
+        access_token = data['access_token']
+        post_id = data['post_id']
+        try:
+            decode = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)
+            if Post.objects.get(post_id = post_id).author_email == decode['email']:
+                return JsonResponse({'is_author':True})
+            else:
+                return JsonResponse({'is_author':False})
+        except jwt.ExpiredSignatureError:
+            return JsonResponse({'error':'Signature has expired'})
+
+class CallNowPost(View):
+    def post(self, request):
+        try:
+            receive = json.loads(request.body)
+            access_token = receive['access_token']
+            jwt_payload = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)
+            author_email = jwt_payload['email']
+            data = Post.objects.filter(author_email=author_email).order_by('-created_dt').first()
+            all_count = Post.objects.filter(author_email=author_email).count()
+            success_count = Post.objects.filter(author_email=author_email, is_success=True).count()
+            ongoing_count = Post.objects.filter(author_email=author_email, is_ongoing=True).count()
+            success_rate = round(float(success_count / all_count) * 100)
+            print(data.diff_date)
+            remain_time = (data.created_dt + timedelta(days=data.diff_date)) - datetime.now()
+            remain_days = remain_time.days
+            remain_hours = math.floor((remain_time - timedelta(days=remain_days)).seconds /3600)
+            remain_minutes = math.floor((remain_time - timedelta(days = remain_days) - timedelta(hours = remain_hours)).seconds / 60)
+            remain_rate = round(((datetime.now() - data.created_dt).seconds / remain_time.seconds)*100)
+            return JsonResponse({'nowposttitle':data.title, 'count':{'all':all_count, 'success':success_count, 'ongoing':ongoing_count}, 'rate':{'success':success_rate, 'remain':remain_rate}, 'remain':{'days':remain_days, 'hours':remain_hours, 'minutes':remain_minutes}})
+        except jwt.ExpiredSignatureError:
+            return JsonResponse({'message':'Signature has expired'})
+        except AttributeError:
+            return JsonResponse({'message':"attributeError"})
 
 class GenerateCSRF(View):
     def get(self, request):
