@@ -226,10 +226,10 @@ class UserCheck(View):
             return JsonResponse({'error':'Signature has expired'})
 
 class CallNowPost(View):
-    def post(self, request):
+    def get(self, request):
         try:
-            receive = json.loads(request.body)
-            access_token = receive['access_token']
+            receive = request.headers
+            access_token = receive['access-token']
             jwt_payload = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)
             author_email = jwt_payload['email']
             data = Post.objects.filter(author_email=author_email).order_by('-created_dt').first()
@@ -237,13 +237,14 @@ class CallNowPost(View):
             success_count = Post.objects.filter(author_email=author_email, is_success=True).count()
             ongoing_count = Post.objects.filter(author_email=author_email, is_ongoing=True).count()
             success_rate = round(float(success_count / all_count) * 100)
+            claps = data.claps
             print(data.diff_date)
             remain_time = (data.created_dt + timedelta(days=data.diff_date)) - datetime.now()
             remain_days = remain_time.days
             remain_hours = math.floor((remain_time - timedelta(days=remain_days)).seconds /3600)
             remain_minutes = math.floor((remain_time - timedelta(days = remain_days) - timedelta(hours = remain_hours)).seconds / 60)
-            remain_rate = round(((datetime.now() - data.created_dt).seconds / remain_time.seconds)*100)
-            return JsonResponse({'nowposttitle':data.title, 'count':{'all':all_count, 'success':success_count, 'ongoing':ongoing_count}, 'rate':{'success':success_rate, 'remain':remain_rate}, 'remain':{'days':remain_days, 'hours':remain_hours, 'minutes':remain_minutes}})
+            remain_rate = round(((datetime.now() - data.created_dt) / remain_time) * 100)
+            return JsonResponse({'nowposttitle':data.title, 'claps':claps, 'count':{'all':all_count, 'success':success_count, 'ongoing':ongoing_count}, 'rate':{'success':success_rate, 'remain':remain_rate}, 'remain':{'days':remain_days, 'hours':remain_hours, 'minutes':remain_minutes}})
         except jwt.ExpiredSignatureError:
             return JsonResponse({'message':'Signature has expired'})
         except AttributeError:
