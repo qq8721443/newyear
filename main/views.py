@@ -117,7 +117,7 @@ class DetailPost(View):
         req_data = json.loads(request.body)             # request data 저장
         data = Post.objects.get(post_id = post_id)      # url의 post_id를 통해 모델에서 일치하는 데이터 가져오기 ‼️ 여기서는 filter 대신 get을 사용해야함.
         data.title = req_data['title']                  # title 수정
-        data.content = req_data['content']              # content 수정
+        data.content = req_data['content']              # content 수정       
         data.save()                                     # 저장
         return JsonResponse({'message':'patch detail post', 'success':'true'})
 
@@ -249,6 +249,24 @@ class CallNowPost(View):
             return JsonResponse({'message':'Signature has expired'})
         except AttributeError:
             return JsonResponse({'message':"attributeError"})
+        except ZeroDivisionError:
+            return JsonResponse({'nowposttitle':'작성한 목표가 없습니다.', 'claps':0, 'count':{'all':0, 'success':0, 'ongoing':0}, 'rate':{'success':0, 'remain':0}, 'remain':{'days':0, 'hours':0, 'minutes':0}})
+
+class ChangeSuccess(View):
+    def patch(self, request, post_id):
+        data = Post.objects.get(post_id = post_id)
+        data.is_ongoing = False
+        data.is_success = True
+        data.save()
+        return JsonResponse({'message':'state change to success'})
+        
+class ChangeFail(View):
+    def patch(self, request, post_id):
+        data = Post.objects.get(post_id = post_id)
+        data.is_ongoing = False
+        data.is_fail = True
+        data.save()
+        return JsonResponse({'message':'state change to fail'})
 
 class GenerateCSRF(View):
     def get(self, request):
