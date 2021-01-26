@@ -21,8 +21,8 @@ class SignUp(View):
         if data['exist_check']:
             if User.objects.filter(kakao_user_id = data['kakao_user_id']).exists():
                 ins = User.objects.get(kakao_user_id = data['kakao_user_id'])
-                access_token = jwt.encode({'kakao_user_id':data['kakao_user_id']}, SECRET_KEY_ACCESS, algorithm=ALGORITHM)
-                refresh_token = jwt.encode({'kakao_user_id':data['kakao_user_id'], 'exp':datetime.utcnow() + timedelta(weeks=4)}, SECRET_KEY_REFRESH, algorithm=ALGORITHM)
+                access_token = jwt.encode({'email':ins.email}, SECRET_KEY_ACCESS, algorithm=ALGORITHM)
+                refresh_token = jwt.encode({'email':ins.email, 'exp':datetime.utcnow() + timedelta(weeks=4)}, SECRET_KEY_REFRESH, algorithm=ALGORITHM)
                 return JsonResponse({'message':'이미 등록 완료', 'already':True, 'nickname':ins.nickname, 'email':ins.email, 'access_token':access_token, 'refresh_token':refresh_token})
             else:
                 return JsonResponse({'message':'카카오 로그인 진행', 'already':False, 'id':data['kakao_user_id']})
@@ -37,8 +37,8 @@ class SignUp(View):
                         kakao_user_id = data['kakao_user_id']
                     ).save()
                     ins = User.objects.get(kakao_user_id = data['kakao_user_id'])
-                    access_token = jwt.encode({'kakao_user_id':data['kakao_user_id'], 'exp':datetime.utcnow() + timedelta(days=1)}, SECRET_KEY_ACCESS, algorithm=ALGORITHM)
-                    refresh_token = jwt.encode({'kakao_user_id':data['kakao_user_id'], 'exp':datetime.utcnow() + timedelta(weeks=4)}, SECRET_KEY_REFRESH, algorithm=ALGORITHM)
+                    access_token = jwt.encode({'email':ins.email, 'exp':datetime.utcnow() + timedelta(days=1)}, SECRET_KEY_ACCESS, algorithm=ALGORITHM)
+                    refresh_token = jwt.encode({'email':ins.email, 'exp':datetime.utcnow() + timedelta(weeks=4)}, SECRET_KEY_REFRESH, algorithm=ALGORITHM)
                     return JsonResponse({'message':'kakao login success', 'access_token':access_token, 'nickname':ins.nickname, 'email':ins.email, 'refresh_token':refresh_token, 'success':True})
                 # 카카오 로그인은 따로 로그인 과정이 없기 때문에 여기서 jwt 반환
 
@@ -237,7 +237,7 @@ class CallNowPost(View):
             success_count = Post.objects.filter(author_email=author_email, is_success=True).count()
             ongoing_count = Post.objects.filter(author_email=author_email, is_ongoing=True).count()
             success_rate = round(float(success_count / all_count) * 100)
-            claps = data.claps
+            claps = data.claps.count()
             print(data.diff_date)
             remain_time = (data.created_dt + timedelta(days=data.diff_date)) - datetime.now()
             remain_days = remain_time.days
@@ -267,6 +267,28 @@ class ChangeFail(View):
         data.is_fail = True
         data.save()
         return JsonResponse({'message':'state change to fail'})
+
+class PostLike(View):
+    def post(self, request, post_id):
+        headers = request.headers
+        access_token = headers['access-token']
+        email = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
+        post = Post.objects.get(post_id=post_id)
+        if post.claps.filter(email=email).exists():
+            print(email)
+            post.claps.remove(User.objects.get(email=email))
+        else:
+            post.claps.add(User.objects.get(email=email))
+        return JsonResponse({'message':'like test'})
+
+class MyLike(View):
+    def post(self, request):
+        headers = request.headers
+        access_token = headers['access-token']
+        email = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
+        posts = Post.objects.filter(claps=User.objects.get(email=email))
+        mlp_count = posts.count()
+        return JsonResponse({'data':mlp_count})
 
 class GenerateCSRF(View):
     def get(self, request):

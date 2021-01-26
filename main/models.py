@@ -16,7 +16,7 @@ class Post(models.Model):
     content = models.TextField()
     author = models.CharField(max_length=50)
     author_email = models.CharField(max_length=100)
-    claps =  models.PositiveIntegerField(default=0)
+    claps =  models.ManyToManyField(User, related_name='like_posts', blank=True)
     created_dt = models.DateTimeField(auto_now_add=True)
     is_success = models.BooleanField(default=False)
     is_ongoing = models.BooleanField(default=True)
