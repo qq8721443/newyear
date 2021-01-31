@@ -8,6 +8,7 @@ import requests
 import bcrypt
 import jwt
 import math
+import time
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from django.middleware.csrf import get_token
@@ -21,7 +22,7 @@ class SignUp(View):
         if data['exist_check']:
             if User.objects.filter(kakao_user_id = data['kakao_user_id']).exists():
                 ins = User.objects.get(kakao_user_id = data['kakao_user_id'])
-                access_token = jwt.encode({'email':ins.email}, SECRET_KEY_ACCESS, algorithm=ALGORITHM)
+                access_token = jwt.encode({'email':ins.email, 'exp':datetime.utcnow() + timedelta(days=1)}, SECRET_KEY_ACCESS, algorithm=ALGORITHM)
                 refresh_token = jwt.encode({'email':ins.email, 'exp':datetime.utcnow() + timedelta(weeks=4)}, SECRET_KEY_REFRESH, algorithm=ALGORITHM)
                 return JsonResponse({'message':'이미 등록 완료', 'already':True, 'nickname':ins.nickname, 'email':ins.email, 'access_token':access_token, 'refresh_token':refresh_token})
             else:
@@ -103,9 +104,17 @@ class PostView(View):
 
 class DetailPost(View):
     def get(self, request, post_id):
+        data = request.headers
+        access_token = data['access-token']
+        email = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
+
         if Post.objects.filter(post_id = post_id).exists():
             data = list(Post.objects.filter(post_id = post_id).values())
-            return JsonResponse({'message':'get detail post', 'res':data})
+            if Post.objects.get(post_id = post_id).claps.filter(email = email).exists():
+                is_liked = True
+            else:
+                is_liked = False
+            return JsonResponse({'message':'get detail post', 'res':data, 'is_liked':is_liked})
         else:
             return JsonResponse({'message':"there's no data"})
 
@@ -174,7 +183,7 @@ class Oauth(View):
         return JsonResponse({'message':'redirect uri', 'res':res.json()})
         # return redirect('http://localhost:3000')
 
-class CheckToken(View):
+class KakaoCheckToken(View):
     def post(self, request):
         data = json.loads(request.body)
         url = 'https://kapi.kakao.com/v1/user/access_token_info'
@@ -185,7 +194,7 @@ class CheckToken(View):
         res = requests.get(url, headers=headers)
         return JsonResponse(res.json())
 
-class RefreshToken(View):
+class KakaoRefreshToken(View):
     def post(self, request):
         data = json.loads(request.body)
         url = 'https://kauth.kakao.com/oauth/token'
@@ -198,7 +207,7 @@ class RefreshToken(View):
         res = requests.post(url, params = params)
         return JsonResponse(res.json())
 
-class UserInfo(View):
+class KakaoUserInfo(View):
     def post(self, request):
         data = json.loads(request.body)
         url = 'https://kapi.kakao.com/v2/user/me'
@@ -210,6 +219,39 @@ class UserInfo(View):
         print(res.json())
         
         return JsonResponse(res.json())
+
+class ExpiredCheck(View):
+    def get(self, request):
+        data = request.headers
+        try:
+            access_token = data['access-token']
+            jwt_access_data = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)
+            access_exp = jwt_access_data['exp']
+            print(f'access_exp:{access_exp}')
+            return JsonResponse({'message':'no problem'})
+        except jwt.ExpiredSignatureError:
+            try:
+                refresh_token = data['refresh-token']
+                jwt_refresh_data = jwt.decode(refresh_token, SECRET_KEY_REFRESH, algorithms=ALGORITHM)
+                refresh_exp = jwt_refresh_data['exp']
+                email = jwt_refresh_data['email']
+                print(f'refresh_exp:{refresh_exp}')
+                print(f'email:{email}')
+                print(round(time.time()))
+                if refresh_exp - round(time.time()) <= 172800:
+                    #액세스 토큰, 리프레시 토큰 재발급
+                    access_token = jwt.encode({'email':email, 'exp':datetime.utcnow() + timedelta(days=1)}, SECRET_KEY_ACCESS, algorithm=ALGORITHM)
+                    refresh_token = jwt.encode({'email':email, 'exp':datetime.utcnow() + timedelta(weeks=4)}, SECRET_KEY_REFRESH, algorithm=ALGORITHM)
+                    return JsonResponse({'message':'access/refresh', 'access_token':access_token, 'refresh_token':refresh_token})
+                else:
+                    #액세스 토큰만 재발급
+                    access_token = jwt.encode({'email':email, 'exp':datetime.utcnow() + timedelta(days=1)}, SECRET_KEY_ACCESS, algorithm=ALGORITHM)
+                    return JsonResponse({'message':'access', 'access_token':access_token})
+            except jwt.ExpiredSignatureError:
+                #재로그인 필요
+                return JsonResponse({'message':'re-login needed'})
+        else:
+            return JsonResponse({'message':"there's no access token"})
 
 class UserCheck(View):
     def post(self, request):
@@ -269,17 +311,18 @@ class ChangeFail(View):
         return JsonResponse({'message':'state change to fail'})
 
 class PostLike(View):
-    def post(self, request, post_id):
+    def get(self, request, post_id):
         headers = request.headers
         access_token = headers['access-token']
         email = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
         post = Post.objects.get(post_id=post_id)
         if post.claps.filter(email=email).exists():
-            print(email)
             post.claps.remove(User.objects.get(email=email))
+            return JsonResponse({'message':'unlike test'})
         else:
             post.claps.add(User.objects.get(email=email))
-        return JsonResponse({'message':'like test'})
+            return JsonResponse({'message':'like test'})
+        
 
 class MyLike(View):
     def post(self, request):

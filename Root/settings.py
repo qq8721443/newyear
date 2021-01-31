@@ -56,7 +56,8 @@ MIDDLEWARE = [
 CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = list(default_headers) + [
-    'access-token'
+    'access-token',
+    'refresh-token'
 ]
 
 CSRF_TRUSTED_ORIGINS = ['localhost:3000']
