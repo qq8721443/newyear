@@ -6,6 +6,7 @@ class User(models.Model):
     email = models.EmailField()
     password = models.CharField( max_length=100, null=True )
     nickname = models.CharField(max_length=20)
+    describe = models.TextField(max_length=100, default="작성한 소개글이 없습니다.")
 
 
 
@@ -14,6 +15,7 @@ class Post(models.Model):
     post_id = models.BigAutoField(primary_key=True)
     title = models.CharField(max_length=30, null=True)
     content = models.TextField()
+    goal = models.CharField(max_length=100, null=True)
     author = models.CharField(max_length=50)
     author_email = models.CharField(max_length=100)
     claps =  models.ManyToManyField(User, related_name='like_posts', blank=True)
@@ -29,8 +31,10 @@ class Post(models.Model):
 class Comment(models.Model):
     objects = models.Manager()
     author = models.CharField(max_length=50)
+    author_email = models.CharField(max_length=100)
     content = models.TextField(max_length=200)
     post_id = models.ForeignKey(Post, on_delete=models.CASCADE)
+    created_dt = models.DateTimeField(auto_now_add=True)
 
 # class Hope(models.Model):
 #     objects = models.Manager()

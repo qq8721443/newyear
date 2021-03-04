@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect
 from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.core import serializers
+from django.core.paginator import Paginator, EmptyPage
 from .models import Post, Comment, User
 import json
 import requests
@@ -14,6 +15,7 @@ from django.utils.decorators import method_decorator
 from django.middleware.csrf import get_token
 from datetime import datetime, timedelta
 from .utils import SECRET_KEY_ACCESS, SECRET_KEY_REFRESH, ALGORITHM
+from django.db.models import Count
 
 class SignUp(View):
     def post(self, request):
@@ -79,21 +81,30 @@ class PostView(View):
     def get(self, request):
         if Post.objects.exists():
             data = list(Post.objects.values().order_by('-created_dt'))      #model을 value로 조회하고 list로 감싼다
-            return JsonResponse(data, safe=False)   #safe=False 옵션을 추가해 response 전송
+            
+            # Pagination
+            p = Paginator(data, 5)
+            main_page = p.page(1).object_list
+
+            return JsonResponse(main_page, safe=False)   #safe=False 옵션을 추가해 response 전송
         else:
             return JsonResponse({'message':'get post', 'res':"there's no data"})
 
     def post(self, request):
         data = json.loads(request.body)
+        headers = request.headers
+        email = jwt.decode(headers['access-token'], SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
+        user = User.objects.get(email = email)
         Post(
             title = data['title'],
             content = data['content'],
-            author = data['author'],
-            author_email = data['author_email'],
+            goal = data['object'],
+            author = user.nickname,
+            author_email = email,
             diff_date= data['date_difference']
         ).save()
-        
-        test = list(Post.objects.filter(title = data['title'], content = data['content'], author = data['author']).values())
+
+        test = list(Post.objects.filter(title = data['title'], content = data['content'], author = user.nickname).values())
         
         return JsonResponse({'message':'post post', 'res':test})
 
@@ -102,14 +113,27 @@ class PostView(View):
         data.delete()
         return JsonResponse({'message':'delete complete'})
 
+class ExtraPost(View):
+    def get(self, request, page_num):
+        data = list(Post.objects.values().order_by('-created_dt'))
+        try:
+            p = Paginator(data, 5)
+            extra_page = p.page(page_num).object_list
+            return JsonResponse(extra_page, safe=False)
+        except EmptyPage:
+            return JsonResponse({'message':"there's no extra data"})
+
 class DetailPost(View):
     def get(self, request, post_id):
-        data = request.headers
-        access_token = data['access-token']
-        email = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
-
+        try:
+            data = request.headers
+            access_token = data['access-token']
+            email = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
+        except jwt.DecodeError:
+            email = None
+            
         if Post.objects.filter(post_id = post_id).exists():
-            data = list(Post.objects.filter(post_id = post_id).values())
+            data = list(Post.objects.annotate(claps_count = Count('claps')).filter(post_id = post_id).values())
             if Post.objects.get(post_id = post_id).claps.filter(email = email).exists():
                 is_liked = True
             else:
@@ -117,6 +141,7 @@ class DetailPost(View):
             return JsonResponse({'message':'get detail post', 'res':data, 'is_liked':is_liked})
         else:
             return JsonResponse({'message':"there's no data"})
+
 
     def put(self, request, post_id):
         # PATCH로 대체 가능할듯?
@@ -143,16 +168,22 @@ class CommentView(View):
 class DetailComment(View):
     def get(self, request, post_id):
         if Comment.objects.filter(post_id = post_id).exists():
+            headers = request.headers
+            email = jwt.decode(headers['access-token'], SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
             data = list(Comment.objects.filter(post_id = post_id).values())
-            return JsonResponse({'message':'get detail comment', 'res':data})
+            return JsonResponse({'message':'get detail comment', 'res':data, 'request_email':email})
         else:
             return JsonResponse({'message':"there's no data"})
     
     def post(self, request, post_id):
         req_data = json.loads(request.body)
+        headers = request.headers
+        email = jwt.decode(headers['access-token'],SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
+        user = User.objects.get(email = email)
         Comment(
             content = req_data['content'],
-            author = req_data['author'],
+            author = user.nickname,
+            author_email = email,
             post_id = Post.objects.get(post_id = post_id)
         ).save()
         return JsonResponse({'message':'post comments'})
@@ -256,16 +287,18 @@ class ExpiredCheck(View):
 class UserCheck(View):
     def post(self, request):
         data = json.loads(request.body)
-        access_token = data['access_token']
+        headers = request.headers
         post_id = data['post_id']
         try:
-            decode = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)
-            if Post.objects.get(post_id = post_id).author_email == decode['email']:
+            email = jwt.decode(headers['access-token'],SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
+            if Post.objects.get(post_id = post_id).author_email == email:
                 return JsonResponse({'is_author':True})
             else:
                 return JsonResponse({'is_author':False})
         except jwt.ExpiredSignatureError:
             return JsonResponse({'error':'Signature has expired'})
+        except jwt.DecodeError:
+            return JsonResponse({'message':"there's no access_token"})
 
 class CallNowPost(View):
     def get(self, request):
@@ -280,19 +313,40 @@ class CallNowPost(View):
             ongoing_count = Post.objects.filter(author_email=author_email, is_ongoing=True).count()
             success_rate = round(float(success_count / all_count) * 100)
             claps = data.claps.count()
-            print(data.diff_date)
-            remain_time = (data.created_dt + timedelta(days=data.diff_date)) - datetime.now()
+            all_post = Post.objects.all()
+            posts = Post.objects.filter(claps=User.objects.get(email=author_email))
+            mlp_count = posts.count()
+            # print('my clap', mlp_count)
+            # print(data.diff_date)
+            total_time = data.created_dt + timedelta(milliseconds=data.diff_date)
+            # print(f'total_time : {total_time}')
+            # print(f'created_dt : {data.created_dt}')
+            # print(f'difference : {total_time - data.created_dt}')
+            remain_time = (data.created_dt + timedelta(milliseconds=data.diff_date)) - datetime.now()
+            # print(f'remain_time : {remain_time}')
+            # print(f'분자 : {(datetime.now() - data.created_dt)}')
+            # print(f'남은 비율 : {(datetime.now() - data.created_dt)/(total_time - data.created_dt)}')
             remain_days = remain_time.days
             remain_hours = math.floor((remain_time - timedelta(days=remain_days)).seconds /3600)
             remain_minutes = math.floor((remain_time - timedelta(days = remain_days) - timedelta(hours = remain_hours)).seconds / 60)
-            remain_rate = round(((datetime.now() - data.created_dt) / remain_time) * 100)
-            return JsonResponse({'nowposttitle':data.title, 'claps':claps, 'count':{'all':all_count, 'success':success_count, 'ongoing':ongoing_count}, 'rate':{'success':success_rate, 'remain':remain_rate}, 'remain':{'days':remain_days, 'hours':remain_hours, 'minutes':remain_minutes}})
+            remain_rate = round(((datetime.now() - data.created_dt) / (total_time - data.created_dt)) * 100)
+            if remain_rate > 100 :
+                remain_rate = 100
+            return JsonResponse({'nowposttitle':data.title, 'claps':claps, 'count':{'all':all_count, 'success':success_count, 'ongoing':ongoing_count, 'my_clap':mlp_count}, 'rate':{'success':success_rate, 'remain':remain_rate}, 'remain':{'days':remain_days, 'hours':remain_hours, 'minutes':remain_minutes}})
         except jwt.ExpiredSignatureError:
             return JsonResponse({'message':'Signature has expired'})
-        except AttributeError:
-            return JsonResponse({'message':"attributeError"})
+        # except AttributeError:
+        #     return JsonResponse({'message':"attributeError"})
         except ZeroDivisionError:
-            return JsonResponse({'nowposttitle':'작성한 목표가 없습니다.', 'claps':0, 'count':{'all':0, 'success':0, 'ongoing':0}, 'rate':{'success':0, 'remain':0}, 'remain':{'days':0, 'hours':0, 'minutes':0}})
+            access_token = receive['access-token']
+            jwt_payload = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)
+            email = jwt_payload['email']
+            all_post = Post.objects.all()
+            my_clap = 0
+            for i in all_post:
+                if i.claps.filter(email = email).exists():
+                    my_clap += 1    
+            return JsonResponse({'nowposttitle':'작성한 목표가 없습니다.', 'claps':0, 'count':{'all':0, 'success':0, 'ongoing':0, 'my_clap':my_clap}, 'rate':{'success':0, 'remain':0}, 'remain':{'days':0, 'hours':0, 'minutes':0}})
 
 class ChangeSuccess(View):
     def patch(self, request, post_id):
@@ -333,6 +387,46 @@ class MyLike(View):
         mlp_count = posts.count()
         return JsonResponse({'data':mlp_count})
 
+class HotPost(View):
+    def get(self, request):
+        posts = list(Post.objects.annotate(
+            claps_count = Count("claps")
+        ).filter(claps_count__gte = 5).order_by('-claps_count', '-created_dt').values())
+        print(posts)
+        return JsonResponse({'res':posts})
+
+class ChangeUser(View):
+    def patch(self, request):
+        data = json.loads(request.body)
+        headers = request.headers
+        email = jwt.decode(headers['access-token'], SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
+        user = User.objects.get(email = email)
+        user.nickname = data['nickname']
+        user.describe = data['description']
+        user.save()
+        return JsonResponse({'message':'change success'})
+        
+
+class CallUserInfo(View):
+    def get(self, request):
+        headers = request.headers
+        access_token = headers['access-token']
+        print(access_token)
+        email = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
+        user_info = User.objects.get(email = email)
+        # 작성한 글
+        write_post = list(Post.objects.filter(author_email = email).order_by('-created_dt').values())
+        # 응원한 글
+        clap_post = list(Post.objects.filter(claps=User.objects.get(email = email)).order_by('-created_dt').values())
+        # 댓글단 글
+        test = Comment.objects.filter(author = User.objects.get(email = email).nickname).order_by('post_id_id')
+        reply_post = []
+        for i in test:
+            if list(Post.objects.filter(post_id = i.post_id_id).values()) not in reply_post:
+                reply_post.append(list(Post.objects.filter(post_id = i.post_id_id).values()))
+        
+        return JsonResponse({'info':{'email':user_info.email, 'nickname':user_info.nickname, 'description':user_info.describe}, 'posts':{'write_post':write_post, 'clap_post':clap_post, 'reply_post':reply_post}})
+
 class GenerateCSRF(View):
     def get(self, request):
         return JsonResponse({'csrfToken':get_token(request)})
@@ -351,7 +445,22 @@ class Logout(View):
 
         return JsonResponse({'message':'logout'})
 
-
+class OrmTest(View):
+    def get(self, request):
+        # headers = request.headers
+        # access_token = headers['access-token']
+        # email = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
+        # test = Comment.objects.filter(author = User.objects.get(email = email).nickname).values()
+        # result = []
+        # for i in test:
+        #     result.append(list(Post.objects.filter(post_id = i['post_id_id']).values()))
+        # print(result)
+        test = Comment.objects.filter(author = 'test').order_by('post_id_id')
+        result = []
+        for i in test:
+            if list(Post.objects.filter(post_id = i.post_id_id).values()) not in result:
+                result.append(list(Post.objects.filter(post_id = i.post_id_id).values()))
+        return JsonResponse({'test':result})
 # def csrf(request):
 #     return JsonResponse({'csrfToken': get_token(request)})
 
