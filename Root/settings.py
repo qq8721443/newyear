@@ -60,7 +60,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     'refresh-token'
 ]
 
-CSRF_TRUSTED_ORIGINS = ['localhost:3000']
+CSRF_TRUSTED_ORIGINS = ['todowith.codes']
 
 ROOT_URLCONF = 'Root.urls'
 
