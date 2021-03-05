@@ -60,7 +60,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     'refresh-token'
 ]
 
-CSRF_TRUSTED_ORIGINS = ['https://todowith.codes']
+CSRF_TRUSTED_ORIGINS = ['*']
 
 ROOT_URLCONF = 'Root.urls'
 
