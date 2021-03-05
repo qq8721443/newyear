@@ -201,7 +201,7 @@ class Oauth(View):
         code = data['code']
         url = 'https://kauth.kakao.com/oauth/token'
         client_id = '20887ce0003dfa62635c435e177fee15'
-        redirect_uri = 'http://localhost:3000/oauth'
+        redirect_uri = 'http://todowith.codes/oauth'
         headers = { 'Content-type':'application/x-www-form-urlencoded;charset=utf-8' }
         params = {
             'grant_type':'authorization_code',
