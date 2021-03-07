@@ -169,7 +169,10 @@ class DetailComment(View):
     def get(self, request, post_id):
         if Comment.objects.filter(post_id = post_id).exists():
             headers = request.headers
-            email = jwt.decode(headers['access-token'], SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
+            try:
+                email = jwt.decode(headers['access-token'], SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']    
+            except KeyError:
+                email = None
             data = list(Comment.objects.filter(post_id = post_id).values())
             return JsonResponse({'message':'get detail comment', 'res':data, 'request_email':email})
         else:
