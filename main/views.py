@@ -377,7 +377,7 @@ class ChangeFail(View):
             data.is_fail = True
             data.save()
             message = '상태 변경: 실패'
-        return JsonResponse({'message':'state change to fail'})
+        return JsonResponse({'message':message})
 
 class PostLike(View):
     def get(self, request, post_id):
