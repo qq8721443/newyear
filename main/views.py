@@ -117,7 +117,7 @@ class ExtraPost(View):
     def get(self, request, page_num):
         data = list(Post.objects.values().order_by('-created_dt'))
         try:
-            p = Paginator(data, 5)
+            p = Paginator(data, 10)
             extra_page = p.page(page_num).object_list
             return JsonResponse(extra_page, safe=False)
         except EmptyPage:
@@ -171,7 +171,7 @@ class DetailComment(View):
             headers = request.headers
             access_token = headers.get('access-token')
             print(access_token)
-            if access_token != 'null':
+            if access_token != 'null': ## 프론트에서 넘어올 때 None 값으로 넘어오는게 아니라 null 문자열로 넘어옴
                 email = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
             else:
                 email = None
@@ -356,17 +356,27 @@ class CallNowPost(View):
 class ChangeSuccess(View):
     def patch(self, request, post_id):
         data = Post.objects.get(post_id = post_id)
-        data.is_ongoing = False
-        data.is_success = True
-        data.save()
-        return JsonResponse({'message':'state change to success'})
+        message = ''
+        if data.is_fail is True:
+            message = '이미 실패한 목표입니다.'
+        else:
+            data.is_ongoing = False
+            data.is_success = True
+            data.save()
+            message = '상태 변경: 성공'
+        return JsonResponse({'message':message})
         
 class ChangeFail(View):
     def patch(self, request, post_id):
         data = Post.objects.get(post_id = post_id)
-        data.is_ongoing = False
-        data.is_fail = True
-        data.save()
+        message = ''
+        if data.is_success is True:
+            message = '이미 성공한 목표입니다.'
+        else:
+            data.is_ongoing = False
+            data.is_fail = True
+            data.save()
+            message = '상태 변경: 실패'
         return JsonResponse({'message':'state change to fail'})
 
 class PostLike(View):
