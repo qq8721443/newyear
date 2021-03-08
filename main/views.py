@@ -171,10 +171,10 @@ class DetailComment(View):
             headers = request.headers
             access_token = headers.get('access-token')
             print(access_token)
-            if access_token is not None:
+            if access_token != 'null':
                 email = jwt.decode(access_token, SECRET_KEY_ACCESS, algorithms=ALGORITHM)['email']
             else:
-                email = None    
+                email = None
             data = list(Comment.objects.filter(post_id = post_id).values())
             return JsonResponse({'message':'get detail comment', 'res':data, 'request_email':email})
         else:
