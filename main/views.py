@@ -98,7 +98,7 @@ class PostView(View):
         Post(
             title = data['title'],
             content = data['content'],
-            goal = data['object'],
+            # goal = data['object'], ## 목표 대신 제목과 내용만 사용하기로 함
             author = user.nickname,
             author_email = email,
             diff_date= data['date_difference']
